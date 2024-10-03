@@ -1,0 +1,137 @@
+---
+title: How to Dockerize a Flask application in Linux Fedora 40
+date: '2024-10-02'
+tags: ['Docker', 'guide', 'Linux']
+draft: false
+layout: PostBanner
+images: ['/static/images/Post-1/post1-header.jpg']
+summary: 'A quick guide on Dockerizing a Flask app in Fedora 40, covering Docker installation, creating a Dockerfile, and running the Flask app in a container.'
+---
+
+# Introduction
+
+Dockerizing applications is a powerful way to ensure consistency and portability across different environments. 
+In this guide, we will walk through the process of containerizing a Flask web application on Fedora 40. By the end, 
+you’ll have a Flask app running inside a Docker container, making it easier to deploy and manage in various 
+environments. Whether you're building a small project or deploying at scale, Docker provides the tools to streamline 
+your development workflow. To do that, of course you need to have Docker installed on your machine. 
+Let’s get started!
+
+# Instruction
+
+## Grant non-root docker command
+Before you proceed to build Docker image, make sure you have enabled non-root Docker command. To do that:
+
+1. Create the docker group.
+```bash
+sudo groupadd docker
+```
+
+2. Add your user to the docker group.
+```bash
+sudo usermod -aG docker $USER
+```
+
+3. Log out and log back to your terminal by close and open it back.
+
+4. Verify that you can run docker commands without sudo. Just run any docker command.
+```bash
+docker run hello-world
+```
+
+5. If you still can't run the docker without non-root. You need to modifies the permissions of 
+the Docker socket file (/var/run/docker.sock). So, run this command.
+```bash
+sudo chmod 666 /var/run/docker.sock
+```
+
+6. Now, you should be able to run any docker command without sudo.
+
+## Writing a .dockerfile and .dockerignore
+
+A Dockerfile is a script containing a series of instructions used to build a Docker image. 
+Each command in a Dockerfile describes how to set up the environment, install software, 
+and configure settings in the container. This is my Dockerfile. You can copy it if you want and modify 
+it based on your project.
+
+```dockerfile
+FROM python:3.12-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy Pipfile and Pipfile.lock into the container
+COPY Pipfile Pipfile.lock /app/
+
+# Install dependencies from Pipfile
+RUN pip install pipenv && pipenv install --system --deploy
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Expose port 5000 for the Flask application
+EXPOSE 5000
+
+# Define environment variables
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+
+# Run the application
+CMD ["flask", "run"]
+```
+
+.dockerignore functions similarly to a .gitignore file in Git, which is preventing unnecessary files 
+(like build artifacts, temporary files, or local environment configurations) from being copied 
+into the Docker image, which can help reduce the image size and improve build performance. So, don't forget to 
+create and write what files you do not want include when build the image.
+
+## Building Docker image
+
+A Docker image is a lightweight, stand-alone, executable package that includes everything needed to 
+run a piece of software, including the code, runtime, libraries, environment variables, and configuration 
+files. It serves as a template for creating Docker containers. To build a docker image, run:
+
+```bash
+docker build -t <specify-your-image-name>
+```
+
+Wait for the process to finish. It can take several minutes, depending on the total size of your projects.
+After the process is done building the image, you can check your images by running:
+
+```bash
+docker images
+```
+
+And the output will look like this. I will explain why I name my docker image name like this in the next post. 
+
+![docker-image](/static/images/Post-1/docker-image.png)
+
+## Start the Docker container
+
+To see whether the image we just built can be used or not, we can start a container from a Docker image.
+A Docker container is a runnable instance of a Docker image. It includes everything in the image along with a 
+writable layer, allowing you to execute applications and perform operations. To start a container, run:
+
+```bash
+docker run <your-image-name>
+```
+
+This command will start the Docker container. You should see the URL of your localhost like this:
+
+![docker-run](/static/images/Post-1/docker-run.png)
+
+Now, open the link to see your Flask web application.
+
+## Throubleshoot
+
+If you can't open the link or the container doesn't start, there might be something wrong with 
+your Dockerfile or your code. Sometimes, the commands you write in the Dockerfile are not the same 
+as those you used during development. Check the port you used during development and expose it on Dockerfile.
+
+# Conclusion
+Dockerizing your Flask web application on Fedora 40 ensures consistency across different environments, 
+making it easier to deploy and manage. By following the steps in this guide, you’ve learned how to grant 
+non-root Docker access, write a Dockerfile and .dockerignore, build a Docker image, and run a Docker container. 
+Troubleshooting common issues, such as misconfigured ports or Dockerfile commands, is also essential to ensure 
+smooth operation. With your app now running inside a Docker container, you’ve streamlined your workflow and made 
+your application more portable and scalable for future deployments.

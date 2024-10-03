@@ -1,0 +1,147 @@
+---
+title: How to Deploy and Host your Docker Container to Google Cloud Platform (GCP)
+date: '2024-10-03'
+tags: ['Docker', 'guide', 'Google', 'Google Cloud', 'Artifacts Registry', 'Cloud Run']
+draft: false
+# layout: PostBanner
+# images: ['/static/images/Post-1/post1-header.jpg']
+summary: 'Learn how to deploy and host your Docker container on Google Cloud Platform (GCP) using Cloud Run. This guide covers pushing your Docker image to Google Container Registry (GCR) and setting up Cloud Run to deploy your containerized application. You will have your app live and accessible on the web, with the option to configure a custom domain and HTTPS for secure access.'
+---
+
+# Introduction
+Deploying and hosting Docker containers on Google Cloud Platform (GCP) offers a streamlined and scalable way to run 
+your applications. With GCP’s Cloud Run service, you can easily deploy containers without needing to manage complex 
+infrastructure. This guide will walk you through the process of pushing your Docker image to Google Artifacts 
+Registry (GCR) and deploying it to Cloud Run. Whether you’re building a small project or scaling a large 
+application, GCP provides the tools to make container management efficient and secure. Let’s get started!
+
+# Instructions
+Before deploying your Docker container to GCP, these are the things that you must be accomplished first:
+- Google Cloud Project (GCP) Account
+- Created Project folder on GCP.
+- Installed Google Cloud SDK  on your Desktop. Make sure to run `gcloud init` after the installation to inialize your
+account and project.
+- Enable the Artifacts Registry and Cloud Run API.
+
+All of these can be done through Google Cloud Console or via Command-Line-Interface (CLI).
+
+## Create a repository in Artifacts Registry
+In this case, I will use Console GUI instead of CLI to create the repo:
+1. Open the Artifacts Registry in Console. You can search it in the box.
+2. Click the **CREATE REPOSITORY** button.
+3. In the Create Repository page, just put whatever name you like. For me, I put _phishing-detection-app-repo_.
+4. - Format: **Docker**
+    - Mode: **Standard**
+5. For location type, choose based on your use: 
+- **Multi-Region**: Suitable for applications that require global accessibility, high availability, and lower latency for users distributed across different geographic locations. 
+- **Single Region**: Opt for this option if your users are primarily in one region, you want to reduce costs, or you have specific data residency requirements.
+For me, I chose **Single Region** since I just want to showcase my project.
+6. Write your **Description** and **Add label**
+7. - Encryption: **Google-managed encryption key **
+    - Immutable image tags: **Disabled**
+    - Cleanup policies: **Dry Run**
+8. **CREATE**
+
+Now you have your repository created for your project. Make sure to note down the path of your repository by 
+copying and pasting it somewhere else, as you will need it later. The path will look something like this:  
+_REGION-docker.pkg.dev/PROJECT-NAME/REPO-NAME_
+
+## Tag the Docker Image with Google Artifcats Registry repo naming
+Tagging the Docker Image is straighforward and easy task. But before we can do that, we need to authenticate Docker with
+GCP. To do that, just type this command in Bash:
+```bash
+gcloud auth configure-docker
+```
+Save the configuration. Since we already have Docker images. There is no need to build the image again.
+But, what we need to is to **tag** the docker image. In Docker, a **tag** is a label used to identify a specific 
+version of a Docker image. **Tags** help in organizing and managing different versions of images, allowing users to 
+easily pull, run, or manage images without confusion.
+
+To tag the Docker image:
+```bash
+docker tag <your-local-image-name> <path-to-your-repo>/<your-cloud-image-name>:<tag>
+```
+Make sure the `your-local-image-name` is the same as your Docker image name in your local machine, 
+then the path `path-to-your-repo` is the one that I told you to note down.
+You can use whatever name you want for the `your-cloud-image-name:tag`. Most users will use the same name
+as local Docker image name. Mine look like this: 
+
+`docker tag phishing-detection-app-image us-east1-docker.pkg.dev/personal-ismail/phishing-detection-app-repo/phishing-detection-app-image:v1`
+
+Now if you run `docker images`, you will see a new image above/below the docker image you built. To make it easy to 
+understand, `docker tag` technically create a clone of your Docker image. Remember in the previous post 
+when I said that I will explain why I name my Docker image like that. If you refer to the figure in the 
+previous post, I only have one Docker image. That is because I built the image directly using Google Cloud naming 
+and skipped the tagging part.
+
+## Push the Docker Image you just tag to Artifcats Registry repository
+`docker push` is basically the same as `git push`. It uploads the Docker image to the repository. To do that, just run
+```bash
+docker push <path-to-your-repo>/<your-cloud-image-name>:<tag>
+```
+Or to make it easy, just copy the image that you just tagged and paste it along with the tag.
+
+Wait for the push process to finish. The duration of the process depends on the size of your image.
+After it finishes, go to your repository path in Artifact Registry and refresh it. 
+The image should be available there if no errors occur during the push process.
+
+## Deploy the Docker Image to Google  Cloud Run
+1. Search and open Cloud Run in Console GUI.
+2. Click the **DEPLOY CONTAINER** button at the top and choose **Service**.
+3. Choose _Deploy one revision from an existing container image_ 
+4. For _container image URL_, just click **SELECT** and choose the Docker image from your repo.
+5. Set your _Service name_ and choose _Region_ that you used when creating repository or nearest one if you choose _Multi-Region_.
+6. Tick **Allow unauthenticated invocations**
+7. For _CPU allocation and pricing_:
+    - Choose **"CPU is only allocated during request processing"** for cost-effective solutions in low-traffic or sporadic-use applications.
+    - Choose **"CPU is always allocated"** for high-traffic applications that require low latency and consistent performance.
+    Choose that suits your needs. 
+    
+    For me, I chose **CPU is only allocated during request processing**.
+8. For _Service auto-scaling_, set to 1 to reduce cold starts or else just leave it to 0.
+9. Tick **All** for Ingree control
+10. Expand the _Container(s), volumes, networking, security_
+11. Under Container(s) tab in **SETTINGS** tab:
+    - Set your Flask application port or just leave it default; 8080. **THIS IS IMPORTANT! 
+    Make sure you set the right port or your deployment process will fail.**
+    - Allocate your Memory and CPU that suits your needs.
+    - Set _Minimum number of instances_ to 1 if you want your application running all the time.
+12. Sill under Container(s), go to **VARIABLES AND SECRETS** tabs:
+    - If you have any variables that you stored in .env file during development such as _API_KEYS_, _ACCESS_KEYS_, 
+    or _ACCESS_TOKENS_, you can add it here by clicking the **ADD VARIABLE** button.
+    - Make sure the Name and Value is the same as the one in .env file.
+13. Leave other settings as default.
+14. Hit the **CREATE** button.
+15. Wait for the deployment to finish.
+16. There you go, now you have your live running Docker container. Click the URL to open your web application.
+
+## Set up Custom Domain
+You can use your custom domain instead of the default domain that Google provides. Just make sure you own
+that domain.
+1. In Cloud Run Console, under "Services" tab, click on **MANAGE CUSTOM DOMAINS** and then **ADD MAPPING**.
+2. Select your service, then three options will display:
+    - **Firebase Hosting**: Choose Firebase Hosting if you are using Firebase's suite of services 
+    (e.g., Firestore, Authentication) or if you prefer a simple, integrated hosting solution with built-in CDN, 
+    automatic SSL, and easy custom domain setup.
+    - **Custom domains - Google Cloud load balancing**: Choose this option if you need advanced networking features, 
+    such as multiple Cloud Run services behind one domain, traffic distribution across multiple regions, or 
+    greater control over SSL certificates.
+    - **Cloud Run domain mappings**: Use this option if you need a quick and simple way to add a custom domain 
+    to your Cloud Run service without additional overhead. It’s ideal for users who don’t need the advanced 
+    capabilities of Firebase Hosting or Google Cloud Load Balancing.
+3. For beginner I suggest to use the third option as it is quick. Mine chose 
+4. Select _Verify a new domain..._
+5. Type your domain name in box, and then **Continue**.
+6. Update the DNS records provided by Google by adding them to your DNS provider (Squarespace, GoDaddy, AWS).
+
+Afterward, you will notice that Google automatically manages the process. Wait for it to complete.
+
+Once finished, you will see that Google also issues the SSL certificates for the domain.
+ 
+# Conclusion
+By following this guide, you've learned how to deploy and host your Docker containers using Google Cloud 
+Platform, leveraging Google Artifacts Registry and Cloud Run. This process enables a seamless and scalable 
+solution for running applications, without needing to worry about complex infrastructure management. 
+From creating a Docker repository to tagging, pushing your image, and setting up a custom domain, GCP provides 
+all the necessary tools to simplify container management and deployment. Whether you’re deploying a small project 
+or scaling a larger application, Cloud Run offers an efficient and secure platform tailored to your needs.
